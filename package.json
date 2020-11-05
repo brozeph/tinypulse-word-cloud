@@ -1,0 +1,33 @@
+{
+  "name": "tinypulse-word-cloud",
+  "version": "1.0.0",
+  "description": "Parses TinyPulse report outputs to generate a word cloud from Text Response entries.",
+  "main": "./src/index.mjs",
+  "bin": {
+    "tpwc": "./src/index.mjs"
+  },
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "eslint src/**"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/brozeph/tinypulse-word-cloud.git"
+  },
+  "keywords": [
+    "TinyPulse",
+    "Word",
+    "Cloud"
+  ],
+  "author": "@brozeph",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/brozeph/tinypulse-word-cloud/issues"
+  },
+  "homepage": "https://github.com/brozeph/tinypulse-word-cloud#readme",
+  "devDependencies": {
+    "eslint": "^7.12.1"
+  }
+}
