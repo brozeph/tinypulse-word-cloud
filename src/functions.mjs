@@ -1,17 +1,48 @@
 import fs from 'fs';
 import os from 'os';
 
+import d3, { color } from 'd3';
+import cloud from 'd3-cloud';
+import puppeteer from 'puppeteer';
+import randomColor from 'randomcolor';
+
+import { JSDOM } from 'jsdom';
+
+global.document = new JSDOM("<!DOCTYPE html><body></body>").window.document;
+
+// import Levenshtein from 'levenshtein';
+
 const
   PATH_STOP_WORDS = './stopwords.txt',
   RE_INVALID_CHARS = /[\uFFFD\0\r\n]/g,
-  RE_NON_ALPHA_NUMBERIC_CHARS = /[^a-zA-Z0-9]+/g,
+  RE_NON_WORD_CHARS = /[^a-zA-Z0-9\-\']+/g,
   RE_WHITESPACE = /\s/g;
+
+/*
+export function consolidateWordsByDistance (words) {
+  let consolidated = [];
+
+  if (!words) {
+    return Promise.resolve(consolidated);
+  }
+
+  if (words instanceof Map) {
+    consolidated = Array.from(words.values());
+  }
+
+  // handle scenarios where inbound words are in an Array
+  consolidated = consolidated.length ? consolidated : words;
+
+
+  return Promise.resolve(consolidated);
+}
+//*/
 
 export function extractWordsFromField (data, fieldName = 'Text Response') {
   let wordMap = new Map();
 
   if (!data || !data.length) {
-    return wordMap;
+    return Promise.resolve(wordMap);
   }
 
   data.forEach((record) => {
@@ -22,7 +53,7 @@ export function extractWordsFromField (data, fieldName = 'Text Response') {
     record[fieldName]
       .split(RE_WHITESPACE)
       .forEach((word) => {
-        word = word.toLowerCase().replace(RE_NON_ALPHA_NUMBERIC_CHARS, '');
+        word = word.toLowerCase().replace(RE_NON_WORD_CHARS, '');
 
         // ensure no blank words
         if (!word || !word.length) {
@@ -40,7 +71,7 @@ export function extractWordsFromField (data, fieldName = 'Text Response') {
       });
   });
 
-  return wordMap;
+  return Promise.resolve(wordMap);
 }
 
 export function fileExists (filePath) {
@@ -65,18 +96,23 @@ export async function filterStopWords (words) {
     stopWords = [];
 
   if (!words) {
-    return filtered;
+    return Promise.resolve(filtered);
   }
 
   if (words instanceof Map) {
     filtered = Array.from(words.values());
   }
 
+  // handle scenarios where inbound words are in an Array
+  filtered = filtered.length ? filtered : words;
+
   await readUTF8File(PATH_STOP_WORDS, (chunk) => {
     stopWords = stopWords.concat(chunk.split(os.EOL));
   });
 
-  return filtered.filter((word) => (stopWords.indexOf(word.word) < 0));
+  filtered = filtered.filter((word) => stopWords.indexOf(word.word) === -1);
+
+  return Promise.resolve(filtered);
 }
 
 export async function readUTF8CSVFile (filePath, colDelim = /\t/g, rowDelim = os.EOL) {
@@ -154,19 +190,127 @@ export function readUTF8File (filePath, onData) {
   });
 }
 
+export async function renderWordCloudAsPNG (words, height = 1200, width = 1200) {
+  let
+    browser,
+    document = global.document,
+    image,
+    page,
+    values = [];
+
+  if (words instanceof Map) {
+    values = Array.from(words.values());
+  }
+
+  // handle scenarios where inbound words are in an Array
+  values = values.length ? values : words;
+  values = values.map((word) => ({ count : word.count, text : word.word }));
+
+  // render to HTML using d3.js
+  await new Promise((resolve) => {
+    cloud()
+      .size([width, height])
+      .words(values)
+      /*.rotate(() => {
+        return ~~(Math.random() * 2) * 90;
+      })//*/
+      .padding(() => 10)
+      .font("Impact")
+      .fontSize((d) => {
+        return d.count;
+      })
+      .on("end", (cloudWords) => {
+        let svg = d3.select(document.body).append('svg');
+
+        svg
+          .attr('width', width)
+          .attr('height', height)
+          .append('g')
+          .attr('transform', `translate(${width / 2}, ${height / 2})`)
+          .selectAll('text')
+          .data(cloudWords)
+          .enter()
+          .append('text')
+          .style('font-size', (w) => [w.count, 'em'].join('')) //[w.count, 'em'].join(''))
+          .style('font-family', 'Impact')
+          //.style('fill', (w, i) => d3.scaleLinear(d3.schemeCategory10)(i))
+          .style('fill', () => randomColor())
+          .attr('text-anchor', 'middle')
+          .attr('transform', (w) => [
+            'translate(',
+            w.x,
+            ', ',
+            w.y,
+            ') rotate(',
+            w.rotate,
+            ')'].join(''))
+          .text((w) => w.text);
+
+        return resolve();
+      })
+      .start();
+  });
+
+  // convert HTML to PNG with puppeteer
+  browser = await puppeteer.launch();
+  page = await browser.newPage();
+  await page.setViewport({
+    deviceScaleFactor : 1,
+    height,
+    width
+  });
+
+  console.log(document.body.innerHTML);
+
+  await page.setContent(document.body.outerHTML);
+  image = await page.screenshot({
+    encoding : 'binary',
+    omitBackground : false,
+    type : 'png'
+  });
+  await browser.close();
+
+  return image;
+}
+
+export function saveFile (data, filePath) {
+  if (!filePath) {
+    return Promise.reject(new Error('filePath is required'));
+  }
+
+  if (!data || !data.length) {
+    return Promise.reject(new Error('data is required'));
+  }
+
+  return new Promise((resolve, reject) => {
+    let stream = fs.createWriteStream(filePath, { encoding : 'binary' });
+
+    stream.once('open', () => {
+      stream.end(data);
+      return stream.once('finish', resolve);
+    });
+
+    // reject on error
+    stream.once('error', reject);
+  });
+}
+
 export function sortWords (words) {
   let sorted = [];
 
   if (!words) {
-    return sorted;
+    return Promise.resolve(sorted);
   }
 
   if (words instanceof Map) {
     sorted = Array.from(words.values());
   }
 
+  // handle scenarios where inbound words are in an Array
+  sorted = sorted.length ? sorted : words;
+
   // sort descending by count
   sorted.sort((a, b) => ((a.count > b.count) ? -1 : 1));
 
-  return sorted;
+  return Promise.resolve(sorted);
 }
