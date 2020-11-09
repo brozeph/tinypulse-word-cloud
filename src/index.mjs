@@ -44,10 +44,10 @@ export default (async (app) => {
     })
     //*/
     .then(sortWords)
-    /*
+    //*
     .then((words) => {
       // filter list of words...
-      return Promise.resolve(words.slice(0, 10));
+      return Promise.resolve(words.slice(0, 50));
     })
     //*/
     .then(renderWordCloudAsPNG)

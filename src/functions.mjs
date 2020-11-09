@@ -190,7 +190,7 @@ export function readUTF8File (filePath, onData) {
   });
 }
 
-export async function renderWordCloudAsPNG (words, height = 1200, width = 1200) {
+export async function renderWordCloudAsPNG (words, height = 610, width = 610) {
   let
     browser,
     document = global.document,
@@ -214,7 +214,7 @@ export async function renderWordCloudAsPNG (words, height = 1200, width = 1200) 
       /*.rotate(() => {
         return ~~(Math.random() * 2) * 90;
       })//*/
-      .padding(() => 10)
+      .padding(() => '1em')
       .font("Impact")
       .fontSize((d) => {
         return d.count;
